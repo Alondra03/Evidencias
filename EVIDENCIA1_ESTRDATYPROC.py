@@ -2,6 +2,7 @@ import datetime
 import time
 import sys
 import os
+import csv
 
 def generarID(diccionario):
     lista=[]

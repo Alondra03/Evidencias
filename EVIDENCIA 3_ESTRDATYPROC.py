@@ -5,7 +5,7 @@ import sys
 import os
 from tarfile import ExtractError
 import openpyxl
-  
+
 def verificarId(id,tabla):
   with sqlite3.connect("COWORKING.db") as conn:
     mi_cursor = conn.cursor() 
@@ -93,7 +93,8 @@ finally:
 
 # ---- M E N U   P R I N C I P A L ----
 os.system("cls")
-while True:      
+while True: 
+    os.system("cls")   
     print("-"*50)
     print("MENÚ PRINCIPAL")
     print("\t [A] Reservaciones.")
@@ -115,6 +116,7 @@ while True:
         registrosReservas = ExtraccionBD("SELECT * FROM Reserva ORDER BY idReserva",valores)
         
         # Submenú Reservaciones
+        os.system("cls")
         print("-"*60)
         print("Menu de Reservaciones")
         print("\t [A] Registrar Nueva Reservación.")
@@ -266,14 +268,15 @@ while True:
 
         # B. Modificar Nombre de una Reservación.
         elif(op_reserva.upper() == "B"):
-          print("-" * 54)
-          print(f'|{"EDITAR RESERVACION":^52}|')
-          print("-" * 54)
-          print()
           if not registrosReservas:
-            print("NO hay eventos registrados.")
+            input("NO hay eventos registrados.")
             continue
-          else:
+          else:          
+            print("-" * 54)
+            print(f'|{"EDITAR RESERVACION":^52}|')
+            print("-" * 54)
+            print()
+          
             # Impresion de reservaciones
             print(f'{"  Reservaciones  ":-^54}')
             print("-" * 54)
@@ -316,6 +319,10 @@ while True:
   
         # C. Consultar Disponibilidad de salas para una fecha.
         elif(op_reserva.upper() == "C"):
+          if not registrosSalas:
+            input("\nNo hay salas registradas")
+            continue 
+
           print("-" * 54)
           print(f'|{"DISPONIBILIDAD DE SALAS":^52}|')
           print("-" * 54)
@@ -348,7 +355,7 @@ while True:
         # D. Eliminar una Reservación.
         elif (op_reserva.upper() == "D"):
           if not registrosReservas:
-            print("NO hay eventos registrados.")
+            input("NO hay eventos registrados.")
             continue
           else:
             # Impresión de todas las reservaciones.
@@ -406,7 +413,7 @@ while True:
                   # Eliminacion de la reservacion
                   valores = {"idReserva":reserva}
                   if IngresoBD("DELETE FROM Reserva WHERE (idReserva) = :idReserva",valores):
-                    print("\nSe cancelo correctamente la reservacion!")
+                    input("\nSe cancelo correctamente la reservacion!")
                     break
                 if (op_eliminar.upper() == "B"):
                   break
@@ -424,7 +431,14 @@ while True:
 
    # OPCION B. REPORTES
     elif (op_principal.upper() == "B"):
+      valores = {}
+      registrosReservas = ExtraccionBD("SELECT * FROM Reserva ORDER BY idReserva",valores)
+      if not registrosReservas:
+        input("NO hay eventos registrados.")
+        continue
+
       while True:
+        os.system("cls")
         print("-"*50)
         print("MENU REPORTES")
         print("\t [A] Reporte en Pantalla")
@@ -473,7 +487,7 @@ while True:
           for idSala,nombreCliente,nombreReserva,Turno in registrosReservasFecha:
             print(f'{idSala:<7}{nombreCliente:<33}{nombreReserva:<33}{Turno:<12}')
           print(f'{"FIN DEL REPORTE":*^85}')
-          input()
+          input('\nPresione cualquier tecla para continuar...')
           os.system("cls")
         
         # B. Reporte en Excel

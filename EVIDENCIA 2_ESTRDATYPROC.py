@@ -1,389 +1,560 @@
+import sqlite3
+from sqlite3 import Error
 import datetime
-import time
 import sys
 import os
+from tarfile import ExtractError
 import openpyxl
-import csv
-
-def generarID(diccionario):
-    lista=[]
-    try:
-        for key in diccionario:
-            lista.append(key)
-        return max(lista)+1
-    except:
-        return 1
-
-def validar_ID(estructura,texto):
-  registros = len(estructura)
-  while True:
-    ID = input(texto)
-    try:
-        ID = int(ID)
-        if ID <= registros and ID > 0:
-          return ID
-        else:
-          print(f"ERROR folio no existente.")
-          continue
-    except Exception:
-        print(f"ERROR folio no valido.")
-        print("Ingrese de nuevo...")
-        
-def Editar_Nombre_Evento ():
-    try:
-      ID_Evento= validar_ID(eventos,"Ingrese folio de reservacion: ")
-      if eventos.get(ID_Evento) is not None:
-          while True:
-            editar_nombre = input('Nuevo nombre para el evento: ')
-            if editar_nombre == "":
-              print('Nombre no valido!')
-            else:
-              break
-          eventos [ID_Evento][2]= editar_nombre
-          print('\n Se edito correctamente el nombre del evento!')
-    except:
-      print('*** ERROR! El numero ingresado no existe ***')
-
-def Consultar_Reservaciones ():
-    while True:
-      try:
-        os.system("cls")
-        Fecha_reservacion= input('Fecha de la reservacion que desea buscar (dd/mm/aaaa): ')
-        fecha_procesada = datetime.datetime.strptime(Fecha_reservacion, "%d/%m/%Y").date() 
-        break   
-      except:
-            print(f"ERROR fecha no valida!")
-            print("Ingrese de nuevo...")
-    print("")
-    print("*"*85)
-    print(f'**{"REPORTE DE RESERVACIONES PARA EL DIA "+ Fecha_reservacion:^81}**')
-    print("*"*85)  
-    print(f'{"SALA":^7}{"CLIENTE":^33}{"EVENTO":^33}{"TURNO":^12}')
-    print('*'*85)
-    for id_fecha in eventos:
-        if Fecha_reservacion == eventos[id_fecha][-1]:
-          print(f'{eventos[id_fecha][0]:^7}{eventos[id_fecha][1]:^33}{eventos[id_fecha][2]:^33}{eventos[id_fecha][3]:^12}')
-    print(f'{"FIN DEL REPORTE":*^85}')
-      
-# ESTRUCTURAS
-turnos= {1:"Matutino", 2:"Vespertino", 3:"Nocturno"}
-Salas = {}
-clientes = {}
-eventos = {} 
-ocupado = {}
-
-# LLENADO DE INFO
-try:
-  with open("reservaciones.csv","r",newline="") as archivo:
-    lector = csv.reader(archivo)
-    next(lector)
-    for idReservacion,idSala,cliente,evento,id_turno,turno,fecha in lector:
-      eventos[int(idReservacion)]=[int(idSala),cliente,evento,id_turno,turno,fecha]
-
-  with open("salas.csv","r",newline="") as archivo:
-    lector = csv.reader(archivo)
-    next(lector)
-    for idSala,nombre,capacidad in lector:
-      Salas[int(idSala)]=[nombre,int(capacidad)]
-
-  with open("ocupado.csv","r",newline="") as archivo:
-    lector = csv.reader(archivo)
-    next(lector)
-    for idReservacion, idSala, idTurno, fecha in lector:
-      ocupado[int(idReservacion)]=[int(idSala),int(idTurno),fecha]
-
-  with open("clientes.csv","r",newline="") as archivo:
-    lector = csv.reader(archivo)
-    next(lector)
-    for idCliente,nombre in lector:
-      clientes[idCliente]=[nombre]
-
-except:
-  print("No se encontro informacion anteriormente registrada")
-  input("Presione cualquier tecla para continuar ...")
   
-#----MENU PRINCIPAL----
-while True:
-    os.system("cls")
+def verificarId(id,tabla):
+  with sqlite3.connect("COWORKING.db") as conn:
+    mi_cursor = conn.cursor() 
+    mi_cursor.execute("SELECT * FROM "+tabla+" WHERE id"+tabla+" = "+str(id))
+    valor = mi_cursor.fetchall()
+    if not valor:
+      return False
+    else:
+      return True
+
+#Esta funcion se usara para todo lo que tenga un ingreso de informacion como INSERT UPDATE DELETE
+def IngresoBD(comando,valores):
+  try:
+    with sqlite3.connect("COWORKING.db") as conn:
+      mi_cursor = conn.cursor()
+      mi_cursor.execute(comando,valores)
+  except Error as e:
+    print(e)
+    return False
+  except:
+    print(f"Se produjo el siguiente error: {sys.exc_info()[0]}")
+    return False
+  finally:
+      conn.close()
+      return True
+
+#Esta funcion se usa para cualquier tipo de extraccion de informacion de la BD como SELECT
+def ExtraccionBD(comando,valores):
+  try:
+    with sqlite3.connect("COWORKING.db") as conn:
+      mi_cursor = conn.cursor()
+      mi_cursor.execute(comando,valores)
+      return mi_cursor.fetchall()
+  except Error as e:
+    print(e)
+  except:
+    print(f"Se produjo el siguiente error: {sys.exc_info()[0]}")
+  finally:
+      conn.close()
+      
+# Generamos la base de datos y las tablas para el script
+try:
+    with sqlite3.connect("COWORKING.db") as conn:
+        mi_cursor = conn.cursor()
+        mi_cursor.execute("""CREATE TABLE IF NOT EXISTS Sala (
+        idSala INTEGER PRIMARY KEY,
+        nombreSala TEXT NOT NULL,
+        cupoSala INTEGER);""")
+
+        mi_cursor.execute("""CREATE TABLE IF NOT EXISTS Cliente (
+        idCliente INTEGER PRIMARY KEY,
+        nombreCliente TEXT NOT NULL);""")
+
+        mi_cursor.execute("""CREATE TABLE IF NOT EXISTS Turno (
+        idTurno INTEGER PRIMARY KEY,
+        nombreTurno TEXT NOT NULL);""")
+
+        mi_cursor.execute("""CREATE TABLE IF NOT EXISTS Reserva (
+        idReserva INTEGER PRIMARY KEY,
+        nombreReserva TEXT NOT NULL,
+        fechaReserva TEXT NOT NULL,
+        cliente INTEGER NOT NULL,
+        sala INTEGER NOT NULL,
+        turno INTEGER NOT NULL,
+        FOREIGN KEY(cliente) REFERENCES sala(idCliente),
+        FOREIGN KEY(sala) REFERENCES cliente(idSala),
+        FOREIGN KEY(turno) REFERENCES turno(idTurno));""")
+        pass
+except Error as e:
+    print(e)
+
+# Agregamos los turnos a la tabla "turno".
+try:
+    with sqlite3.connect("COWORKING.db") as conn:
+      mi_cursor = conn.cursor()
+      mi_cursor.execute("INSERT INTO turno VALUES(1,'Matutino')")
+      mi_cursor.execute("INSERT INTO turno VALUES(2,'Vespertino')")
+      mi_cursor.execute("INSERT INTO turno VALUES(3,'Nocturno')")
+except Error as e:
+  print(e)
+except:
+  print(f"Se produjo el siguiente error: {sys.exc_info()[0]}")
+finally:
+  conn.close()
+
+# ---- M E N U   P R I N C I P A L ----
+os.system("cls")
+while True:      
     print("-"*50)
     print("MENÚ PRINCIPAL")
     print("\t [A] Reservaciones.")
     print("\t [B] Reportes.")
     print("\t [C] Registrar Nueva Sala.")
-    print("\t [D] Registrar Nuevo Cliente.") 
+    print("\t [D] Registrar Nuevo Cliente.")
     print("\t [X] Salir.")
     op_principal = input("OPCION: ")
     os.system("cls")
-    if (op_principal == ""):
-          print("No se debe omitir.")
-    # OPCION A. RESERVACIONES
-    if (op_principal.upper() in "A"):
-        # submenú  
-        while True:
-          print("-"*60)
-          print("Menu de Reservaciones")
-          print("\t [A] Registrar Nueva Reservación.")
-          print("\t [B] Modificar Nombre de una Reservación.")
-          print("\t [C] Consultar Disponibilidad de salas para una fecha.")
-          print("\t [X] Regresar al menú principal. ")
-          op_reserva = input("OPCION: ")
-          os.system("cls")
-          if (op_reserva == ""):
-              print("No se debe omitir.")
-          # A. Registrar Nueva Reservación
-          elif (op_reserva.upper() in "A"):
-              ID_Reservacion = generarID(eventos)
-              print("---------------  RESERVACION DE SALA  ----------------")
-              if not bool(clientes):
-                print("Lo sentimos, primero debe registrarse.")
-                input("\nPresione cualquier tecla para continuar...")
-                continue
-              elif not bool(Salas):
-                print("No hay salas registradas")
-                input("\nPresione cualquier tecla para continuar...")
-                continue
 
-              # Validacion Cliente
-              print("CLIENTES")
-              for id,nombre in clientes.items():
-                print(id,'.-',nombre[0])
-                print("-"*54)
-              ID_Cliente = validar_ID(clientes,"Ingrese folio de cliente: ")
-              os.system("cls")
-              print("---------------  RESERVACION DE SALA  ----------------")
+   # OPCION A. RESERVACIONES
+    if (op_principal.upper() == "A"):
+      while True:
+        # Recolección de todos los registros en la BD
+        valores = {}
+        registrosClientes = ExtraccionBD("SELECT * FROM Cliente ORDER BY idCliente",valores)
+        registrosSalas = ExtraccionBD("SELECT * FROM Sala ORDER BY idSala",valores)
+        registrosTurnos = ExtraccionBD("SELECT * FROM Turno ORDER BY idTurno",valores)
+        registrosReservas = ExtraccionBD("SELECT * FROM Reserva ORDER BY idReserva",valores)
+        
+        # Submenú Reservaciones
+        print("-"*60)
+        print("Menu de Reservaciones")
+        print("\t [A] Registrar Nueva Reservación.")
+        print("\t [B] Modificar Nombre de una Reservación.")
+        print("\t [C] Consultar Disponibilidad de salas para una fecha.")
+        print("\t [D] Eliminar una Reservación.")
+        print("\t [X] Regresar al menú principal. ")
+        op_reserva = input("OPCION: ")
+        os.system("cls")
 
-              # Validacion Fecha
-              while True:
-                fecha_capturada = input("\nFecha del evento dd/mm/aaaa: ")
-                try:
-                  fecha_procesada = datetime.datetime.strptime(fecha_capturada,"%d/%m/%Y").date()
-                  fecha_actual = datetime.date.today()
-                  fecha_invalida = fecha_actual + datetime.timedelta(days=+1)
-                  if fecha_procesada <=  fecha_invalida:
-                    print(f"Fecha Rechazada.Se necesita al menos 2 días de anticipación.")
-                    continue
-                  else:
-                    os.system("cls")
-                    print("---------------  RESERVACION DE SALA  ----------------")
-                    print("SALAS")
-                    
-                    # Imprime salas registradas
-                    for id in Salas:
-                      print(id,'.-',Salas[id][0])
-                    print("-"*54)
-                    
-                        # Validacion Sala
-                    idSala = validar_ID(Salas,"Ingrese folio de sala: ")
-                    os.system("cls")
-                    print("---------------  RESERVACION DE SALA  ----------------")
-                    print("TURNOS")
-                    
-                    # Imprime turno
-                    for turno in turnos:
-                        print(turno,".-",turnos[turno])
-                    print("-"*54)
-                    
-                    # Validacion ID        
-                    ID_Turno = validar_ID(turnos,"Ingrese folio de turno: ")
-                    os.system("cls")
-                    print("---------------  RESERVACION DE SALA  ----------------")
-                    while True:
-                        Nombre_Reservacion= input('\nNombre para la reservacion: ')
-                        if Nombre_Reservacion == "":
-                            print("No se puede omitir.")
-                            continue
-                        else:
-                            break
-
-                    # Guardar Registros
-                    if ID_Reservacion == 1:
-                        eventos[ID_Reservacion] = [idSala,clientes[ID_Cliente][0],Nombre_Reservacion,ID_Turno,turnos[ID_Turno], fecha_capturada]
-                        ocupado[ID_Reservacion] = [idSala, (ID_Turno), fecha_capturada] # Nos permitirá comprobar que no hayan eventos con misma fecha, sala y turno
-                        print("\nLa reservacion se ha guardado exitosamente!")
-                    else:
-                        # Validar que NO se empalme con otro evento registrado
-                        nueva_Reservacion = ([idSala,(ID_Turno),fecha_capturada])
-                        for registro in ocupado.values():
-                          if registro == nueva_Reservacion:
-                            print("Lo sentimos, sala OCUPADA!")
-                            break
-                        else:
-                          eventos[ID_Reservacion] = [idSala, clientes[ID_Cliente][0], Nombre_Reservacion, ID_Turno, turnos[ID_Turno], fecha_capturada]
-                          print(type(fecha_capturada))
-                    break
-                except ValueError:
-                    print(f"ERROR fecha no valida")
-                    print("Ingrese de nuevo...")
-
-          # B. Editar Nombre de una Reservación
-          elif (op_reserva.upper() in "B"):
-            print("------------  EDITAR NOMBRE DE SALA  -------------")
-            if not bool(eventos):
-              print("NO hay eventos registrados.")
-              continue
-            else:
-              for id in eventos:
-                  print(id,'.-',eventos[id][2])
-              print("_"*50)
-              print('--> Seleccione el numero del evento: ')
-              Editar_Nombre_Evento()
-
-         # C. Consultar Disponibilidad de Salas por fecha.
-          elif (op_reserva.upper() in "C"):
-              print("------ CONSULTAR DISPONIBILIDAD DE SALA  -------")
-              print(" ")
-              while True:
-                fecha_ingresada = input("Ingrese la fecha que desea consultar dd/mm/aaaa: ")
-                lista_encontrados = []
-                eventos_posibles = []
-                try:
-                  fecha_buscada=datetime.datetime.strptime(fecha_ingresada,"%d/%m/%Y").date()
-                  for valor in eventos.items():
-                    sala, turno, fecha = (valor[1][0], valor[1][3], valor[1][5])
-                    if fecha == fecha_ingresada:
-                      lista_encontrados.append((sala, turno))
-                    eventos_encontrados = set(lista_encontrados)
-                  for sala in Salas.keys():
-                    for turno in turnos.keys():
-                      eventos_posibles.append((sala, turno))
-                      combinaciones_eventos_posibles = set(eventos_posibles)
-                      salas_turnos_disponibles = sorted(list(combinaciones_eventos_posibles - eventos_encontrados))
-                  os.system("cls")
-                  print(f'** Salas disponibles para renta el {fecha_ingresada} **\n')
-                  print("Sala\t\tTurno\n")
-                  for sala, turno in salas_turnos_disponibles:
-                    print(f"{sala}. {Salas[sala][0]}\t\t{turnos[turno]}")
+        # A. Registrar Nueva Reservación
+        if(op_reserva.upper() == "A"):
+          if not registrosClientes:
+            input("\nLo sentimos, primero debe registrarse.")
+            continue
+          elif not registrosSalas:
+            input("\nNo hay salas registradas")
+            continue    
+          
+          # Impresion de cliente
+          print("-" * 54)
+          print(f'|{"RESERVACION DE SALA":^52}|')
+          print("-" * 54)
+          print(f'|{"Clientes":^52}|')
+          print("-" * 54)
+          print(f'|{" Numero Cliente":^15}{"Nombre":^37}|') 
+          print("-" * 54)
+          for idCliente,nombreCliente in registrosClientes:
+            print(f'|{idCliente:^15}{nombreCliente:^37}|')
+          print("-" * 54)
+          print()
+          
+          # Validacion de cliente
+          while True:
+            try:
+              cliente = int(input("Ingrese folio de cliente: "))
+              if cliente > 0:
+                if verificarId(cliente,"Cliente"):
                   break
-                except:
-                  print(f"ERROR fecha no valida!")
-                  print("Ingrese de nuevo...")
-          # X. Salida del submenú.
-          elif (op_reserva.upper() in "X"):
-              print("Has salido del Menú Reservaciones.")
+                else:
+                  print("Numero de cliente no valido")
+              else:
+                  print("Numero de cliente no valido")
+            except Exception:
+              print("Ocurrió un problema numero no valido")
+              print("Ingrese de nuevo...")
+          os.system("cls")
+
+          print("-" * 54)
+          print(f'|{"RESERVACION DE SALA":^52}|')
+          print("-" * 54)
+
+          # Validacion de fecha
+          while True:
+            fecha_str = input("\nFecha del evento dd/mm/aaaa: ") 
+            try: 
+              fechaReserva = datetime.datetime.strptime(fecha_str,"%d/%m/%Y").date()               
+              fecha_actual = datetime.date.today()
+              fecha_invalida = fecha_actual + datetime.timedelta(days=+1)
+              if fechaReserva <=  fecha_invalida:
+                print(f"Fecha Rechazada.Se necesita al menos 2 días de anticipación.")
+                continue
+              else:
+                break
+            except ValueError:
+              print(f"ERROR! Formato de fecha NO valida.")
+              print("Ingrese de nuevo...")
+          os.system("cls")
+
+          # Impresion de sala
+          print("-" * 54)
+          print(f'|{"RESERVACION DE SALA":^52}|')
+          print("-" * 54)          
+          print(f'|{"Salas":^52}|')
+          print("-" * 54)
+          print(f'|{" Numero Sala":^15}{"Nombre":^27}{"Capacidad ":^10}|')
+          print("-" * 54)
+          for idSala,nombreSala,cupoSala in registrosSalas:
+              print(f'|{idSala:^15}{nombreSala:^27}{cupoSala:^10}|')
+          print("-" * 54)
+          print()
+
+          # Validacion de sala
+          while True:
+            try:
+              sala = int(input("Ingrese folio de sala: "))
+              if sala > 0:
+                if verificarId(sala,"Sala"):
+                  break
+                else:
+                  print("Numero de sala no valido")
+              else:
+                print("Numero de sala no valido")
+            except Exception:
+              print(f"Ocurrió un problema numero no valido")
+              print("Ingrese de nuevo...")
+          os.system("cls")
+
+          # Impresion de turno         
+          print("-" * 54)
+          print(f'|{"RESERVACION DE SALA":^52}|')
+          print("-" * 54)      
+          print(f'|{"Turnos":^52}|')
+          print("-" * 54)
+          print(f'|{" Numero Turno":^15}{"Turno":^37}|')
+          print("-" * 54)
+          for idTurno,nombreTurno in registrosTurnos:
+              print(f"|{idTurno:^15}{nombreTurno:^37}|")
+          print("-" * 54)
+          print()
+          
+          # Validacion de turno
+          while True:
+            try:
+              turno = int(input("Ingrese folio de turno: "))
+              if turno > 0:
+                if verificarId(turno,"Turno"):
+                  break
+                else:
+                  print("Numero de turno no valido")
+              else:
+                print("Numero de turno no valido")
+            except Exception:
+              print(f"Ocurrió un problema numero no valido")
+              print("Ingrese de nuevo...")
+          os.system("cls")
+
+          # Validar que no se empalmen los eventos
+          valores = {"fechaReserva":fechaReserva,"idSala":sala,"idTurno":turno}
+          if not ExtraccionBD("SELECT * FROM Reserva WHERE fechaReserva = :fechaReserva and sala = :idSala and turno = :idTurno",valores):
+            print("-" * 54)
+            print(f'|{"RESERVACION DE SALA":^52}|')
+            print("-" * 54)    
+            # Validacion de nombre
+            while True:
+              nombreReserva= input('\nNombre para la reservacion: ')
+              if nombreReserva == "":
+                  print("No se puede omitir.")
+                  continue
+              else:
+                  break     
+            # Guardar Reservación en base de datos
+            valores = (nombreReserva, fechaReserva, cliente, sala, turno )
+            if IngresoBD("INSERT INTO Reserva(nombreReserva, fechaReserva, cliente, sala, turno) VALUES(?,?,?,?,?)", valores):
+              input("\nLa reservacion ha sido guardado exitosamente!")
+          else:
+            input("\nError la reservacion coincide con una reserva ya realizada.")
+          os.system("cls")
+
+        # B. Modificar Nombre de una Reservación.
+        elif(op_reserva.upper() == "B"):
+          print("-" * 54)
+          print(f'|{"EDITAR RESERVACION":^52}|')
+          print("-" * 54)
+          print()
+          if not registrosReservas:
+            print("NO hay eventos registrados.")
+            continue
+          else:
+            # Impresion de reservaciones
+            print(f'{"  Reservaciones  ":-^54}')
+            print("-" * 54)
+            print(f'{"Numero Reserva":^14}{"Nombre":^31}{"Fecha":^9}')
+            print("-" * 54)
+            for idReserva,nombreReserva,fechaReserva,cliente,sala,turno in registrosReservas:
+                print(f"{idReserva:^14}{nombreReserva:^29}{fechaReserva:^12}")
+            print("-" * 54)
+            print()
+            
+          # Validacion de id de reservacion
+          while True:
+            try:
+              reserva = int(input("Ingrese folio de reservacion: "))
+              if reserva > 0:
+                if verificarId(reserva,"Reserva"):
+                  break
+                else:
+                  print("Numero de reserva no valido")
+              else:
+                print("Numero de reserva no valido")
+            except Exception:
+              print(f"Ocurrió un problema numero no valido")
+              print("Ingrese de nuevo...")
+          os.system("cls")
+          
+          # Validacion del nuevo nombre para la reservacion
+          while True:
+            nuevoNombre = input('Nuevo nombre para el evento: ')
+            if nuevoNombre == "":
+              print('Nombre no valido!')
+            else:
+              break
+            
+          # Guardar en base de datos.
+          valores = {"nombre":nuevoNombre,"idReserva":reserva}
+          if IngresoBD("UPDATE Reserva SET (nombreReserva) = :nombre WHERE (idReserva) = :idReserva", valores):
+            input('\nSe edito correctamente el nombre del evento!')
+          os.system("cls")
+  
+        # C. Consultar Disponibilidad de salas para una fecha.
+        elif(op_reserva.upper() == "C"):
+          print("-" * 54)
+          print(f'|{"DISPONIBILIDAD DE SALAS":^52}|')
+          print("-" * 54)
+          while True:
+            fechaBuscada = input("\nIngrese la fecha que desea consultar dd/mm/aaaa: ")
+            try:
+              fechaBuscada = datetime.datetime.strptime(fechaBuscada,"%d/%m/%Y").date()
+              os.system("cls")
+              break
+            except:
+              print(f"ERROR fecha no valida!")
+          
+          #Extraer informacion de la base de datos
+          valores = {"fechaReserva":fechaBuscada}
+          reservaciones_actuales = ExtraccionBD("SELECT sala.idSala,sala.nombreSala, turno.nombreTurno FROM Reserva INNER JOIN sala on Reserva.sala = sala.idSala INNER JOIN turno on Reserva.turno = turno.idTurno where Reserva.fechaReserva = :fechaReserva",valores)
+          valores = {}
+          eventos_posibles = ExtraccionBD("SELECT sala.idSala,sala.nombreSala, turno.nombreTurno FROM sala, turno",valores)
+          
+          print(f'**{"Salas disponibles para renta el dia "+str(fechaBuscada):^52}**')
+          print()
+          print(f'{"Sala":<26}{"Turno":<26}')
+          print()
+          for evento in reservaciones_actuales:
+            eventos_posibles.remove(evento)
+          for idSala,nombreSala, nombreTurno in eventos_posibles:
+            print(f'{str(idSala)+". "+nombreSala:<26}{nombreTurno:<26}')
+          input()
+          os.system("cls")
+          
+        # D. Eliminar una Reservación.
+        elif (op_reserva.upper() == "D"):
+          if not registrosReservas:
+            print("NO hay eventos registrados.")
+            continue
+          else:
+            # Impresión de todas las reservaciones.
+            print("-" * 54)
+            print(f'|{"ELIMINAR RESERVACION":^52}|')
+            print("-" * 54)
+            print(f'|{"Reservaciones  ":^52}|')
+            print("-" * 54)
+            print(f'|{"Numero Reserva":^14}{"Nombre":^28}{"Fecha":^10}|')
+            print("-" * 54)
+            for idReserva,nombreReserva,fechaReserva,cliente,sala,turno in registrosReservas:
+                print(f'|{idReserva:^14}{nombreReserva:^28}{fechaReserva:^10}|')
+            print("-" * 54)
+            print()
+            
+          # Validación del id de la reservacion
+          while True:
+            try:
+              reserva = int(input("Ingrese folio de sala: "))
+              if verificarId(reserva,"Reserva"):
+                os.system("cls")
+                break
+              else:
+                print("Opcion no valida.")
+                continue
+            except:
+              print("ERROR! Respuesta no valida")
+
+
+          # Extraccion de informacion de la reservacion
+          valores = {"idReserva":reserva}
+          reservacion = ExtraccionBD("SELECT * FROM Reserva WHERE (idReserva) = :idReserva",valores)
+          
+          # Validacion de fecha para saber si se puede eliminar
+          fecha_actual = datetime.date.today()
+          fecha_invalida = fecha_actual + datetime.timedelta(days=+2)
+          for idReserva,nombreReserva,fechaReserva,cliente,sala,turno in reservacion:
+            if fechaReserva <=  str(fecha_invalida):
+              print(f"\nFecha Rechazada.Se necesitan al menos 3 días de anticipación para cancelar la reservacion.")
+              input()
+              break
+            else:
+              # Impresion de reservacion a eliminar
+              print("-" * 54)
+              print(f'|{"ELIMINAR RESERVACION":^52}|') 
+              print("-" * 54)
+              print(f'|{"Numero Reserva":^14}{"Nombre":^28}{"Fecha":^10}|')
+              print("-" * 54)    
+              for idReserva,nombreReserva,fechaReserva,cliente,sala,turno in reservacion:
+                print(f'|{idReserva:^14}{nombreReserva:^28}{fechaReserva:^10}|')
+                print("-" * 54)
+              while True:
+                op_eliminar=input("\n¿Esta seguro de eliminar la reservacion? (A = Si / B = No): ")
+                if (op_eliminar.upper() == "A"):
+                  # Eliminacion de la reservacion
+                  valores = {"idReserva":reserva}
+                  if IngresoBD("DELETE FROM Reserva WHERE (idReserva) = :idReserva",valores):
+                    print("\nSe cancelo correctamente la reservacion!")
+                    break
+                if (op_eliminar.upper() == "B"):
+                  break
+                else:
+                  input("OPCION NO VALIDA. Debe ingresar la letra que corresponda a la acción deseada.")
+          os.system("cls")
+              
+        # Salir del submenú.
+        elif(op_reserva.upper() == "X"):
+          break
+        
+        else:
+          input("OPCION NO VALIDA. Debe ingresar la letra que corresponda a la acción deseada.")
+          os.system("cls")
+
+   # OPCION B. REPORTES
+    elif (op_principal.upper() == "B"):
+      while True:
+        print("-"*50)
+        print("MENU REPORTES")
+        print("\t [A] Reporte en Pantalla")
+        print("\t [B] Reporte en Excel.")
+        print("\t [X] Regresar al menú principal. ")
+        op_reporte = input("OPCION: ")
+        os.system("cls")
+
+        # A. Reporte en Pantalla
+        if (op_reporte.upper() == "A"):
+          # Extraccion de informacion de reportes de la BD
+          valores={}
+          todasReservas = ExtraccionBD("SELECT Reserva.sala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno, Reserva.fechaReserva FROM Reserva INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno",valores)
+          
+          #Impresion de Reporte
+          print("*"*85)
+          print(f'**{"REPORTE DE RESERVACIONES ":^81}**')
+          print("*"*85)
+          print(f'{"SALA":<10}{"CLIENTE":<20}{"EVENTO":<20}{"TURNO":<20}{"FECHA":<26}')
+          print('*'*85)
+          for idSala,nombreCliente,nombreReserva,Turno,fechaReserva in todasReservas:
+            print(f'{idSala:<10}{nombreCliente:<20}{nombreReserva:<20}{Turno:<20}{fechaReserva:<26}')
+          print(f'{"FIN DEL REPORTE":*^85}')
+
+          # Validacion de fecha
+          while True:
+            fecha_str = input("\nIngrese la fecha del evento a buscar dd/mm/aaaa: ") 
+            try: 
+              fechaReserva = datetime.datetime.strptime(fecha_str,"%d/%m/%Y").date()               
+              break
+            except ValueError:
+              print(f"ERROR! Formato de fecha NO valida.")
+              print("Ingrese de nuevo...")
+          os.system("cls")
+
+          # Extraccion de informacion de reportes de la BD con fecha especifica
+          valores = {"fechaReserva":fechaReserva}
+          registrosReservasFecha = ExtraccionBD("SELECT Reserva.sala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno FROM Reserva INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno WHERE Reserva.fechaReserva = :fechaReserva",valores)
+          
+          #Impresion de Reporte por fecha
+          print("*"*85)
+          print(f'**{"REPORTE DE RESERVACIONES PARA EL DIA "+fecha_str:^81}**')
+          print("*"*85)
+          print(f'{"SALA":<7}{"CLIENTE":<33}{"EVENTO":<33}{"TURNO":<12}')
+          print('*'*85)
+          for idSala,nombreCliente,nombreReserva,Turno in registrosReservasFecha:
+            print(f'{idSala:<7}{nombreCliente:<33}{nombreReserva:<33}{Turno:<12}')
+          print(f'{"FIN DEL REPORTE":*^85}')
+          input()
+          os.system("cls")
+        
+        # B. Reporte en Excel
+        elif (op_reporte.upper() == "B"):
+          #Extraer reservaciones de la BD
+          valores = {}
+          registrosreserva = ExtraccionBD("SELECT Reserva.sala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno, Reserva.fechaReserva FROM Reserva INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno",valores) 
+          
+          #Exportaccion para un excel
+          libro = openpyxl.Workbook()
+          #libro.iso_dates = True #Acepte fechas              
+          hoja = libro["Sheet"] 
+          hoja.title = "Reporte"
+          hoja.append(('SALA', 'CLIENTE', 'EVENTO', 'TURNO','FECHA'))
+          for idSala,nombreCliente,nombreReserva,Turno,fechaReserva in registrosreserva:
+            reporte=idSala,nombreCliente,nombreReserva,Turno,fechaReserva
+            hoja.append(reporte)
+          libro.save("Reporte.xlsx")
+          input("\nSe exporto en excel las reservaciones exitosamente!")
+          os.system("cls")
+        
+        # X. Salida del menú reportes.
+        elif(op_reporte.upper() == "X"):
+          print("Has salido del Menú Reportes.")
+          break
+        else:
+          input("OPCION NO VALIDA. Debe ingresar la letra que corresponda a la acción deseada.")
+          os.system("cls")
+ 
+    # OPCION C. RESERVAR NUEVA SALA
+    elif (op_principal.upper() == "C"):
+      print("-" * 54)
+      print(f'|{"REGISTRAR SALA":^52}|')
+      print("-" * 54)
+      print()
+      while True:
+        nombreSala = (input("Nombre para la sala: "))
+        if nombreSala == "":
+          print("No se puede omitir.")
+          continue
+        else:
+          break
+      while True:
+        try:
+          cupoSala=int(input("Capacidad de la sala: "))
+          if cupoSala >0:
               break
           else:
-              print("OPCION NO VALIDA. Debes ingresar la letra que corresponda a la acción deseada.")
-          input("\nPresione cualquier tecla para continuar...")
+              print("Ocurrió un problema no puede ingresar numeros menores a 0")
+        except Exception:
+          print(f"Ocurrió un problema numero no valido")
+          print("Ingrese de nuevo...")
 
-          os.system("cls")
-    # OPCION B. REPORTES
-    elif (op_principal.upper() in "B"):
-        # submenú
-        while True:
-            print("-"*50)
-            print("MENU REPORTES")
-            print("\t [A] Reporte en Pantalla")
-            print("\t [B] Reporte en Excel.")
-            print("\t [X] Regresar al menú principal. ")
-            op_reporte = input("OPCION: ")
-            os.system("cls")
-            if (op_reporte == ""):
-              print("No se debe omitir.")
-            # A. Reporte en Pantalla
-            if (op_reporte.upper() in "A"):
-                if not bool(eventos):
-                    print("NO hay eventos registrados.")
-                    continue
-                print("*"*85)
-                print(f'**{"REPORTE DE RESERVACIONES":^81}**')
-                print("*"*85)  
-                print(f'{"SALA":^7}{"CLIENTE":^28}{"EVENTO":^28}{"TURNO":^12}{"FECHA":^10}')
-                print('*'*85)
-                for id_fecha in eventos:
-                    print(f'{eventos[id_fecha][0]:^7}{eventos[id_fecha][1]:^28}{eventos[id_fecha][2]:^28}{eventos[id_fecha][4]:^12}{eventos[id_fecha][5]:^10}')
-                print(f'{"FIN DEL REPORTE":*^85}')
-                Consultar_Reservaciones()
-                
-                
-                    
-            # B. Reporte en Excel
-            elif (op_reporte.upper() in "B"):
-                print("Reporte en Excel")
-                print("")
-                if not bool(eventos):
-                    print("NO hay eventos registrados.")
-                    continue
-                libro = openpyxl.Workbook()
-                #libro.iso_dates = True #Acepte fechas              
-                hoja = libro["Sheet"] 
-                hoja.title = "Reporte"
-                hoja.append(('Id', 'Cliente', 'Sala', 'Turno','Fecha')) 
-                for id_fecha in eventos:
-                  lista = [eventos[id_fecha][0],eventos[id_fecha][1],eventos[id_fecha][2],eventos[id_fecha][4],eventos[id_fecha][5]]                
-                  hoja.append(lista)
-                libro.save("Reporte.xlsx")
-            
-            # X. Salida del submenú.
-            elif (op_reporte.upper() in "X"):
-                  print("Has salido del Menú Reportes.")
-                  break
-            else:
-                print("OPCION NO VALIDA. Debes ingresar la letra que corresponda a la acción deseada.")
-            input("\nPresione cualquier tecla para continuar...")
-            os.system("cls")          
-            
-    # OPCION C. RESERVAR NUEVA SALA
-    elif (op_principal.upper() in "C"):
-        print("---------------  REGISTRAR SALA  -----------------")
-        ID_Sala = generarID(Salas)     
-        # Validaciones
-        while True:
-            Nombre = (input("Nombre para la sala: "))
-            if Nombre == "":
-                print("No se puede omitir.")
-                continue
-            else:
-                break  
-        while True:
-          try:
-            Cupo=int(input("Capacidad de la sala: "))
-            if Cupo >0:
-                break
-            else:
-                print("Ocurrió un problema no puede ingresar numeros menores a 0")
-          except Exception:
-            print(f"Ocurrió un problema numero no valido")
-            print("Ingrese de nuevo...")
-        Salas[ID_Sala]=(Nombre, Cupo)
-        print("\nLa sala ha sido guardada exitosamente!")
-        
-    # OPCION D. REGISTRAR NUEVO CLIENTE
-    elif (op_principal.upper() in "D"):
-        print("--------------  REGISTRAR CLIENTE  ---------------")
-        ID_Cliente = generarID(clientes) 
-        
-        # Validacion Nombre
-        while True:
-            Nombre = input("Nombre del cliente: ")
-            if Nombre == "":
-                print("No se puede omitir.")
-                continue
-            else:
-                break 
-        clientes[ID_Cliente]=[Nombre]
-        print("\nEl cliente ha sido guardado exitosamente!")
-        
-    # OPCION X. SALIR 
-    elif (op_principal.upper() in "X"):
-        print("FIN DE LA EJECUCIÓN! ")
-        with open("reservaciones.csv","w",newline="") as archivo:
-          grabador = csv.writer(archivo)
-          grabador.writerow(( " idRESERVA ", " idSALA "," CLIENTE " , " EVENTO ", "ID TURNO"," TURNO "," FECHA "))
-          grabador.writerows([(clave,datos[0],datos[1],datos[2],datos[3],datos[4],datos[5]) for clave,datos in eventos.items()])
-        with open("salas.csv","w",newline="") as archivo:
-          grabador = csv.writer(archivo)
-          grabador.writerow(( "idSALA ", " NOMBRE ", " CAPACIDAD "))
-          grabador.writerows([(clave,datos[0],datos[1]) for clave,datos in Salas.items()])
-        with open("clientes.csv","w",newline="") as archivo:
-          grabador = csv.writer(archivo)
-          grabador.writerow(( "idCLIENTE ", " NOMBRE "))
-          grabador.writerows([(clave,datos[0]) for clave,datos in clientes.items()])
-        with open("ocupado.csv","w",newline="") as archivo:
-          grabador = csv.writer(archivo)
-          grabador.writerow(( " idRESERVA ", " idSALA ", " idTURNO ", " FECHA "))
-          grabador.writerows([(clave,datos[0],datos[1],datos[2]) for clave,datos in ocupado.items()])
-        break
+      # Guardar en base de datos.
+      valores = (nombreSala, cupoSala)
+      if IngresoBD("INSERT INTO Sala( nombreSala, cupoSala ) VALUES(?,?)",valores):
+        input("\nLa sala ha sido guardada exitosamente!")
+      os.system("cls")
+
+    # OPCION D. Registrar un cliente
+    elif (op_principal.upper() == "D"):
+      print("-" * 54)
+      print(f'|{"REGISTRAR CLIENTE":^52}|')
+      print("-" * 54)
+      print()
+      while True:
+        nombreCliente = input("Nombre del cliente: ")
+        if nombreCliente == "":
+          print("No se puede omitir.")
+          continue
+        else:
+          break
+      # Guardar en base de datos.
+      valores = (nombreCliente,)
+      if IngresoBD("INSERT INTO Cliente(nombreCliente) VALUES(?)",valores):
+        input("\nEl cliente ha sido guardado exitosamente!")
+      os.system("cls")
+
+    # OPCION X Salir del menú principal.
+    elif (op_principal.upper() == "X"):
+      break
     else:
-        print("OPCION NO VALIDA. Debes ingresar la letra que corresponda a la acción deseada.")
-    input("\nPresione cualquier tecla para continuar...")
-    os.system("cls")
+      input("OPCION NO VALIDA. Debe ingresar la letra que corresponda a la acción deseada.")
+      os.system("cls")

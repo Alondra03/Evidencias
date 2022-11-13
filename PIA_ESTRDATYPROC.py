@@ -109,11 +109,11 @@ while True:
     if (op_principal.upper() == "A"):
       while True:
         # Recolección de todos los registros en la BD
-        valores = {}
-        registrosClientes = ExtraccionBD("SELECT * FROM Cliente ORDER BY idCliente",valores)
-        registrosSalas = ExtraccionBD("SELECT * FROM Sala ORDER BY idSala",valores)
-        registrosTurnos = ExtraccionBD("SELECT * FROM Turno ORDER BY idTurno",valores)
-        registrosReservas = ExtraccionBD("SELECT * FROM Reserva ORDER BY idReserva",valores)
+        r = {}
+        registrosClientes = ExtraccionBD("SELECT * FROM Cliente ORDER BY idCliente",r)
+        registrosSalas = ExtraccionBD("SELECT * FROM Sala ORDER BY idSala",r)
+        registrosTurnos = ExtraccionBD("SELECT * FROM Turno ORDER BY idTurno",r)
+        registrosReservas = ExtraccionBD("SELECT * FROM Reserva ORDER BY idReserva",r)
         
         # Submenú Reservaciones
         os.system("cls")
@@ -138,9 +138,7 @@ while True:
           
           # Impresion de cliente
           print("-" * 54)
-          print(f'|{"RESERVACION DE SALA":^52}|')
-          print("-" * 54)
-          print(f'|{"Clientes":^52}|')
+          print(f'|{"CLIENTES":^52}|')
           print("-" * 54)
           print(f'|{" Numero Cliente":^15}{"Nombre":^37}|') 
           print("-" * 54)
@@ -166,12 +164,12 @@ while True:
           os.system("cls")
 
           print("-" * 54)
-          print(f'|{"RESERVACION DE SALA":^52}|')
+          print(f'|{"FECHA DEL EVENTO":^52}|')
           print("-" * 54)
 
           # Validacion de fecha
           while True:
-            fecha_str = input("\nFecha del evento dd/mm/aaaa: ") 
+            fecha_str = input("\nIngrese la fecha deseada dd/mm/aaaa: ") 
             try: 
               fechaReserva = datetime.datetime.strptime(fecha_str,"%d/%m/%Y").date()               
               fecha_actual = datetime.date.today()
@@ -188,10 +186,8 @@ while True:
 
           # Impresion de sala
           print("-" * 54)
-          print(f'|{"RESERVACION DE SALA":^52}|')
+          print(f'|{"SALAS":^52}|')
           print("-" * 54)          
-          print(f'|{"Salas":^52}|')
-          print("-" * 54)
           print(f'|{" Numero Sala":^15}{"Nombre":^27}{"Capacidad ":^10}|')
           print("-" * 54)
           for idSala,nombreSala,cupoSala in registrosSalas:
@@ -217,10 +213,8 @@ while True:
 
           # Impresion de turno         
           print("-" * 54)
-          print(f'|{"RESERVACION DE SALA":^52}|')
+          print(f'|{"TURNOS":^52}|')
           print("-" * 54)      
-          print(f'|{"Turnos":^52}|')
-          print("-" * 54)
           print(f'|{" Numero Turno":^15}{"Turno":^37}|')
           print("-" * 54)
           for idTurno,nombreTurno in registrosTurnos:
@@ -248,12 +242,12 @@ while True:
           valores = {"fechaReserva":fechaReserva,"idSala":sala,"idTurno":turno}
           if not ExtraccionBD("SELECT * FROM Reserva WHERE fechaReserva = :fechaReserva and sala = :idSala and turno = :idTurno",valores):
             print("-" * 54)
-            print(f'|{"RESERVACION DE SALA":^52}|')
+            print(f'|{"NOMBRE DE LA RESERVACIÓN":^52}|')
             print("-" * 54)    
             # Validacion de nombre
             while True:
-              nombreReserva= input('\nNombre para la reservacion: ')
-              if nombreReserva == "":
+              nombreReserva= input('\nIngrese el nombre para la reservación: ')
+              if nombreReserva == "" or nombreReserva.isspace():
                   print("No se puede omitir.")
                   continue
               else:
@@ -306,7 +300,7 @@ while True:
           # Validacion del nuevo nombre para la reservacion
           while True:
             nuevoNombre = input('Nuevo nombre para el evento: ')
-            if nuevoNombre == "":
+            if nuevoNombre == "" or nuevoNombre.isspace():
               print('Nombre no valido!')
             else:
               break
@@ -449,20 +443,6 @@ while True:
 
         # A. Reporte en Pantalla
         if (op_reporte.upper() == "A"):
-          # Extraccion de informacion de reportes de la BD
-          valores={}
-          todasReservas = ExtraccionBD("SELECT Reserva.sala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno, Reserva.fechaReserva FROM Reserva INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno",valores)
-          
-          #Impresion de Reporte
-          print("*"*85)
-          print(f'**{"REPORTE DE RESERVACIONES ":^81}**')
-          print("*"*85)
-          print(f'{"SALA":<10}{"CLIENTE":<20}{"EVENTO":<20}{"TURNO":<20}{"FECHA":<26}')
-          print('*'*85)
-          for idSala,nombreCliente,nombreReserva,Turno,fechaReserva in todasReservas:
-            print(f'{idSala:<10}{nombreCliente:<20}{nombreReserva:<20}{Turno:<20}{fechaReserva:<26}')
-          print(f'{"FIN DEL REPORTE":*^85}')
-
           # Validacion de fecha
           while True:
             fecha_str = input("\nIngrese la fecha del evento a buscar dd/mm/aaaa: ") 
@@ -476,34 +456,45 @@ while True:
 
           # Extraccion de informacion de reportes de la BD con fecha especifica
           valores = {"fechaReserva":fechaReserva}
-          registrosReservasFecha = ExtraccionBD("SELECT Reserva.sala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno FROM Reserva INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno WHERE Reserva.fechaReserva = :fechaReserva",valores)
+          registrosReservasFecha = ExtraccionBD("SELECT Sala.nombreSala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno FROM Reserva INNER JOIN Sala ON Reserva.sala = Sala.idSala INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno WHERE Reserva.fechaReserva = :fechaReserva",valores)
           
           #Impresion de Reporte por fecha
           print("*"*85)
           print(f'**{"REPORTE DE RESERVACIONES PARA EL DIA "+fecha_str:^81}**')
           print("*"*85)
-          print(f'{"SALA":<7}{"CLIENTE":<33}{"EVENTO":<33}{"TURNO":<12}')
+          print(f'{"SALA":<20}{"CLIENTE":<20}{"EVENTO":<33}{"TURNO":<12}')
           print('*'*85)
-          for idSala,nombreCliente,nombreReserva,Turno in registrosReservasFecha:
-            print(f'{idSala:<7}{nombreCliente:<33}{nombreReserva:<33}{Turno:<12}')
+          for nombreSala,nombreCliente,nombreReserva,Turno in registrosReservasFecha:
+            print(f'{nombreSala:<20}{nombreCliente:<20}{nombreReserva:<33}{Turno:<12}')
           print(f'{"FIN DEL REPORTE":*^85}')
           input('\nPresione cualquier tecla para continuar...')
           os.system("cls")
         
         # B. Reporte en Excel
         elif (op_reporte.upper() == "B"):
-          #Extraer reservaciones de la BD
-          valores = {}
-          registrosreserva = ExtraccionBD("SELECT Reserva.sala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno, Reserva.fechaReserva FROM Reserva INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno",valores) 
-          
+         # Validacion de fecha
+          while True:
+            fecha_str = input("\nIngrese la fecha del evento a buscar dd/mm/aaaa: ") 
+            try: 
+              fechaReserva = datetime.datetime.strptime(fecha_str,"%d/%m/%Y").date()               
+              break
+            except ValueError:
+              print(f"ERROR! Formato de fecha NO valida.")
+              print("Ingrese de nuevo...")
+          os.system("cls")
+
+          # Extraccion de informacion de reportes de la BD con fecha especifica
+          valores = {"fechaReserva":fechaReserva}
+          registrosReservas = ExtraccionBD("SELECT Sala.nombreSala, Cliente.nombreCliente, Reserva.nombreReserva, Turno.nombreTurno, Reserva.fechaReserva FROM Reserva INNER JOIN Sala ON Reserva.sala = Sala.idSala INNER JOIN Cliente ON Reserva.cliente = Cliente.idCliente INNER JOIN Turno on Reserva.turno = Turno.idTurno WHERE Reserva.fechaReserva = :fechaReserva",valores)
+            
           #Exportaccion para un excel
           libro = openpyxl.Workbook()
           #libro.iso_dates = True #Acepte fechas              
           hoja = libro["Sheet"] 
           hoja.title = "Reporte"
           hoja.append(('SALA', 'CLIENTE', 'EVENTO', 'TURNO','FECHA'))
-          for idSala,nombreCliente,nombreReserva,Turno,fechaReserva in registrosreserva:
-            reporte=idSala,nombreCliente,nombreReserva,Turno,fechaReserva
+          for nombreSala,nombreCliente,nombreReserva,Turno,fechaReserva in registrosReservas:
+            reporte=nombreSala,nombreCliente,nombreReserva,Turno,fechaReserva
             hoja.append(reporte)
           libro.save("Reporte.xlsx")
           input("\nSe exporto en excel las reservaciones exitosamente!")
@@ -525,7 +516,7 @@ while True:
       print()
       while True:
         nombreSala = (input("Nombre para la sala: "))
-        if nombreSala == "":
+        if nombreSala == "" or nombreSala.isspace():
           print("No se puede omitir.")
           continue
         else:
@@ -555,7 +546,7 @@ while True:
       print()
       while True:
         nombreCliente = input("Nombre del cliente: ")
-        if nombreCliente == "":
+        if nombreCliente == "" or nombreCliente.isspace():
           print("No se puede omitir.")
           continue
         else:
